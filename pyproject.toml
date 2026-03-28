@@ -1,0 +1,34 @@
+[project]
+name = "zania-coding-challenge"
+version = "1.0.0"
+description = "Question-answering API using RAG over PDF and JSON documents"
+requires-python = ">=3.12"
+dependencies = [
+    "chromadb>=1.5.5",
+    "fastapi>=0.135.2",
+    "langchain>=1.2.13",
+    "langchain-community>=0.4.1",
+    "langchain-openai>=1.1.12",
+    "langchain-chroma>=0.2.0",
+    "langchain-text-splitters>=0.3.0",
+    "pydantic-settings>=2.0.0",
+    "pypdf>=6.9.2",
+    "python-dotenv>=1.2.2",
+    "tenacity>=9.0.0",
+    "uvicorn[standard]>=0.42.0",
+    "python-multipart>=0.0.22",
+    "rank-bm25>=0.2.2",
+    "pymupdf4llm>=1.27.2.2",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
