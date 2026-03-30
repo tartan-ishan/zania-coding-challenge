@@ -52,11 +52,12 @@ CRITERIA = {
         "and the higher number if it is at the stronger end. Output only the integer."
     ),
     "accuracy": (
-        "Score the factual correctness of every claim in the prediction against the reference answer. "
+        "Score the factual correctness of every claim in the prediction against the reference answer."
+        "The focus here is to ensure the generated answer's claims and information are aligned with the reference, and not as much completeness with respect to the reference."
         "You MUST assign a score from the bands below — no other values are valid:\n"
         "  1-2 — Multiple significant factual errors or hallucinations not supported by the reference.\n"
         "  3-4 — At least one clear factual error or overconfident claim unsupported by the reference.\n"
-        "  5-6 — Mostly correct but includes a minor inaccuracy or unsupported generalisation.\n"
+        "  5-6 — Mostly correct but includes a minor inaccuracy.\n"
         "  7-8 — All claims accurate; at most one very minor imprecision.\n"
         "  9-10 — Every factual claim fully supported by and consistent with the reference.\n"
         "Within each band, use the lower number if the prediction is at the weaker end of that description, "
