@@ -17,6 +17,7 @@ def _real_bm25_retriever(docs):
 
 class TestBuildRetriever:
     def test_returns_ensemble_retriever(self):
+        # build_retriever returns an EnsembleRetriever combining semantic and keyword search
         docs = [
             Document(page_content="AWS is the primary cloud provider."),
             Document(page_content="Data is encrypted using AES-256."),
@@ -31,6 +32,7 @@ class TestBuildRetriever:
         assert isinstance(retriever, EnsembleRetriever)
 
     def test_ensemble_has_two_retrievers(self):
+        # The ensemble wraps exactly two sub-retrievers (semantic + BM25)
         docs = [
             Document(page_content="AWS is used for hosting."),
             Document(page_content="GCP is used for analytics."),
@@ -44,6 +46,7 @@ class TestBuildRetriever:
         assert len(retriever.retrievers) == 2
 
     def test_weights_sum_to_one(self):
+        # Retriever weights are normalised so they sum to exactly 1.0
         docs = [Document(page_content="Some content about security policies.")]
         mock_semantic = _real_bm25_retriever(docs)
 

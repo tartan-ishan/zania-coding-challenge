@@ -1,0 +1,15 @@
+{
+  "company": "Acme Corp",
+  "cloud_providers": ["AWS", "GCP"],
+  "data_encryption": "All data is encrypted at rest using AES-256 and in transit using TLS 1.2+.",
+  "security_incident_owner": "The Chief Information Security Officer (CISO) is responsible for managing and responding to all security incidents.",
+  "data_centers": {
+    "primary": "us-east-1 (AWS)",
+    "backup": "us-west-2 (AWS)"
+  },
+  "monitoring": {
+    "apm": true,
+    "eum": false,
+    "dem": false
+  }
+}

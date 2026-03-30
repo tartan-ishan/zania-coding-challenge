@@ -1,0 +1,62 @@
+[
+    {
+        "question": "Do you have formally defined criteria for notifying a client during an incident that might impact the security of their data or systems? What are your SLAs for notification?",
+        "ideal_answer": "Yes, Product Fruits has a documented Incident Management Policy and Data Breach Notification Policy (CC7.3.10, CC7.4.2). Incidents are classified into four severity tiers: Low, Medium, High, and Critical. However, this document does not specify numeric SLA timeframes for client notification. A supplementary policy document or DPA would be needed to confirm specific notification windows."
+    },
+    {
+        "question": "Is personal information transmitted, processed, stored, or disclosed to or retained by third parties? If yes, describe.",
+        "ideal_answer": "Yes. Product Fruits uses three subservice organizations that may process or store data: AWS (cloud infrastructure hosting in Europe), GitHub (source code repository), and Microsoft Office 365 (communication and collaboration). Customer data is classified as confidential and encrypted in transit (TLS) and at rest (AES-256). However, specific PII data flows to each subservice organization are not enumerated in this document."
+    },
+    {
+        "question": "Which cloud providers do you rely on?",
+        "ideal_answer": "Product Fruits relies on three cloud subservice organizations: Amazon Web Services (AWS) for cloud infrastructure and SaaS hosting, GitHub (operated by GitHub Inc.) for source code repository and version control, and Microsoft Office 365 for communication, file sharing, and collaboration services."
+    },
+    {
+        "question": "Please specify the primary data center location/region of the underlying cloud infrastructure used to host the service(s) as well as the backup location(s).",
+        "ideal_answer": "The primary infrastructure is hosted on AWS in European regions, with eu-west-1 referenced in the network architecture diagram. The document confirms at-least-daily backups are maintained but does not explicitly name a separate backup region. Physical security and environmental controls for the data center are delegated to AWS."
+    },
+    {
+        "question": "Which of the following, if any, are performed as part of your monitoring process for the service: Application Performance Monitoring (APM), End User Monitoring (EUM), Digital Experience Monitoring (DEM)?",
+        "ideal_answer": "None of APM, EUM, or DEM are explicitly referenced in this document. The report does describe infrastructure-level monitoring including capacity alerting on production assets, audit log generation and review, anomaly and threat detection, and continuous compliance monitoring via Sprinto. These operate at the infrastructure and security layer rather than the application performance or end-user experience layer. A supplementary response from Product Fruits would be required to confirm whether APM, EUM, or DEM tooling is in use."
+    },
+    {
+        "question": "What encryption standards are used to protect data at rest and in transit?",
+        "ideal_answer": "Data in transit is encrypted using Transport Layer Security (TLS) with certificates from a third-party certificate authority. Remote administration access uses SSH or an encrypted VPN. Data at rest is encrypted using AES-256. These controls are confirmed as tested with no exceptions noted."
+    },
+    {
+        "question": "How is user access to systems managed when an employee leaves the company?",
+        "ideal_answer": "Upon termination, access to all critical systems is revoked in a timely manner. This is governed by the Access Control Policy and is a tested control. The Information Security Officer performs quarterly access reviews to ensure access levels remain appropriate under the principle of least privilege."
+    },
+    {
+        "question": "Does the company perform background checks on new employees?",
+        "ideal_answer": "Yes. Background checks are performed on all new hires as part of the onboarding process. This is documented in the HR policies and confirmed as a tested control with no exceptions noted (CC1.4.2)."
+    },
+    {
+        "question": "What is the company's penetration testing cadence?",
+        "ideal_answer": "Data not available"
+    },
+    {
+        "question": "Is multi-factor authentication required for access to production systems?",
+        "ideal_answer": "Yes. Multi-Factor Authentication (MFA) is required for access to all critical systems wherever possible. This is confirmed as a tested control with no exceptions noted (CC6.6.1). Staff must also use complex passwords of at least 10 characters that are alphanumeric and include special characters."
+    },
+    {
+        "question": "How frequently is the disaster recovery plan tested?",
+        "ideal_answer": "The Business Continuity Plan is tested periodically against defined Recovery Time Objectives (RTOs) and Recovery Point Objectives (RPOs). Backups are restored at least annually as part of operational activities. Disaster recovery exercises are conducted and notes are retained as evidence (A1.3.2). However, the document does not specify a numeric testing frequency beyond 'periodic' and 'at least annually' for backup restoration."
+    },
+    {
+        "question": "What programming languages and technologies are used to build the Product Fruits application?",
+        "ideal_answer": "The application is built using C#, JavaScript, Go, and Python. The infrastructure runs on Linux with PostgreSQL and MongoDB as the primary databases, hosted on AWS in Europe."
+    },
+    {
+        "question": "Does the company have a formal vulnerability management program, and how are vulnerabilities tracked and remediated?",
+        "ideal_answer": "Yes. A documented Vulnerability Management Policy is in place. Regular vulnerability scans are performed on the platform (CC7.1.3). Identified vulnerabilities are tracked and remediated according to the policy. Infrastructure is also configured with threat detection to identify anomalous activity. All related controls were tested with no exceptions noted."
+    },
+    {
+        "question": "Is there a formal process for reviewing and approving code changes before they reach production?",
+        "ideal_answer": "Yes. All code changes require a peer review via a pull request process before being released to production. The reviewer must be different from the author. Automated testing is also run as part of the pull request process. A version control system (GitHub) maintains full change history and supports rollback. Production deployment access is restricted to authorized personnel only."
+    },
+    {
+        "question": "What is the company's uptime SLA or availability commitment to customers?",
+        "ideal_answer": "This document does not specify a numeric uptime SLA or availability percentage. It confirms that availability monitoring, business continuity planning, and disaster recovery procedures are in place and tested, but no specific uptime commitment (e.g. 99.9%) is stated. Customer agreements or the service's public documentation would need to be reviewed for specific availability commitments."
+    }
+]

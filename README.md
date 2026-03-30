@@ -1,95 +1,67 @@
 # Zania QA API
 
-A production-quality backend API that answers questions from uploaded documents (PDF or JSON) using Retrieval-Augmented Generation (RAG).
+A backend API that answers questions from uploaded documents (PDF or JSON) using Retrieval-Augmented Generation (RAG).
 
-**Stack:** FastAPI · LangChain · OpenAI gpt-4o-mini · Chroma (in-memory) · uv
+**Stack:** FastAPI · LangChain · OpenAI gpt-4o-mini · Chroma (in-memory) · BM25 · uv
 
 ---
 
 ## How it works
 
-1. You upload a document (PDF or JSON) and a questions file (JSON array of strings).
-2. The document is chunked and embedded into an in-memory Chroma vector store.
-3. For each question, the most relevant chunks are retrieved. If no chunk meets the confidence threshold, the answer is `"Data Not Available"`.
-4. Qualifying chunks are sent to `gpt-4o-mini` with a strict prompt that prevents hallucination.
-5. All questions are answered concurrently. Results are returned as a JSON object mapping each question to its answer.
+1. Upload a document (PDF or JSON) and a questions file (JSON array of strings).
+2. The document is chunked and indexed into a hybrid retriever (semantic via Chroma + lexical via BM25).
+3. For each question, the system generates sub-queries and keywords, retrieves relevant chunks, and sends them to `gpt-4o-mini` with a strict anti-hallucination prompt.
+4. All questions are answered concurrently. Returns `"Data Not Available"` when no relevant context is found.
 
 ---
 
 ## Setup
 
-### Prerequisites
-- Python 3.12+
-- [uv](https://docs.astral.sh/uv/)
-
-### Install
+**Prerequisites:** Python 3.12+, [uv](https://docs.astral.sh/uv/)
 
 ```bash
-git clone <repo-url>
-cd zania-coding-challenge
-
-# Install dependencies
 uv sync
-
-# Configure environment
-cp .env.example .env
-# Edit .env and set your OPENAI_API_KEY
+echo "OPENAI_API_KEY=your-key-here" > .env
 ```
 
 ---
 
-## Running locally
+## Running
 
+**Locally:**
 ```bash
 uv run uvicorn app.main:app --reload
 ```
 
-The API will be available at `http://localhost:8000`.
-
-Interactive docs: `http://localhost:8000/docs`
-
----
-
-## Running with Docker
-
+**Docker:**
 ```bash
 docker build -t zania-qa .
 docker run -p 8000:8000 --env-file .env zania-qa
 ```
 
+**docker-compose:**
+```bash
+docker-compose up --build
+```
+
+Available at `http://localhost:8000` · UI at `/` · Docs at `/docs`
+
 ---
 
-## API Usage
+## API
 
 ### `POST /api/v1/qa`
 
-Upload a document and questions file, get answers back.
-
-**Parameters (multipart/form-data):**
-
 | Field | Type | Description |
 |---|---|---|
-| `document_file` | file | PDF or JSON document to query |
-| `questions_file` | file | JSON file — array of question strings |
-
-**Example request:**
+| `document_file` | file | PDF or JSON document (max 20 MB) |
+| `questions_file` | file | JSON array of question strings (max 50 questions) |
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/qa \
-  -F "document_file=@/path/to/document.pdf" \
-  -F "questions_file=@/path/to/questions.json"
+  -F "document_file=@document.pdf" \
+  -F "questions_file=@questions.json"
 ```
-
-**Example questions file (`questions.json`):**
-
-```json
-[
-  "What cloud providers are used?",
-  "Who is responsible for security incidents?"
-]
-```
-
-**Example response:**
 
 ```json
 {
@@ -100,59 +72,130 @@ curl -X POST http://localhost:8000/api/v1/qa \
 }
 ```
 
+**Error codes:** `415` unsupported file type · `422` malformed JSON · `413` file too large · `500` retriever failure · `502` LLM failure
+
+### `GET /health`
+
+Returns `{"status": "ok"}`.
+
 ---
 
 ## Configuration
 
-All settings can be overridden via environment variables (see `.env.example`):
-
 | Variable | Default | Description |
 |---|---|---|
-| `OPENAI_API_KEY` | required | Your OpenAI API key |
-| `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI chat model |
-| `EMBEDDING_MODEL` | `text-embedding-3-small` | OpenAI embedding model |
-| `CHUNK_SIZE` | `1000` | Characters per document chunk |
+| `OPENAI_API_KEY` | required | OpenAI API key |
+| `OPENAI_MODEL` | `gpt-4o-mini` | Chat model |
+| `EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
+| `CHUNK_SIZE` | `1000` | Characters per chunk |
 | `CHUNK_OVERLAP` | `200` | Overlap between chunks |
-| `CONFIDENCE_THRESHOLD` | `0.7` | Minimum retrieval score (0–1) to use a chunk |
-| `RETRIEVAL_K` | `4` | Number of chunks to retrieve per question |
-| `MAX_RETRIES` | `3` | Retries on OpenAI rate limit errors |
+| `RETRIEVAL_K` | `15` | Chunks retrieved per query |
+| `BM25_WEIGHT` | `0.4` | BM25 weight in ensemble (semantic = 1 - this) |
+| `MAX_CONCURRENT_QUESTIONS` | `50` | Concurrent question limit |
+| `MAX_RETRIES` | `3` | Retries on OpenAI rate limit |
+| `LLM_TIMEOUT_SECONDS` | `60.0` | Per-question LLM timeout |
 
 ---
 
-## Running tests
-
-### Unit tests (no OpenAI calls, no API key needed)
+## Tests
 
 ```bash
-uv run pytest tests/unit -v
+uv run pytest tests/unit -v         # no API key required
+uv run pytest tests/integration -v  # no API key required (mocked)
+uv run pytest -v                    # all tests
 ```
 
-### Integration tests (hit real OpenAI API)
-
-Uses fixture files in `tests/fixtures/` by default.
-
-```bash
-uv run pytest tests/integration -v
-```
-
-Override fixture files with environment variables:
-
-```bash
-TEST_DOCUMENT_PATH=/path/to/your.pdf \
-TEST_QUESTIONS_PATH=/path/to/your_questions.json \
-uv run pytest tests/integration -v
-```
-
-### All tests
-
-```bash
-uv run pytest -v
-```
+Integration tests mock both the retriever and LLM — no `OPENAI_API_KEY` needed. Override fixture files with `TEST_DOCUMENT_PATH` and `TEST_QUESTIONS_PATH`.
 
 ---
 
-## Extending
+## Logs
 
-**Switch to persistent Chroma:** In [app/services/vector_store.py](app/services/vector_store.py), pass `persist_directory="./chroma_db"` to `Chroma.from_documents()`.
+Structured JSON logs are written to stdout and `logs/app.log` (rotating, 30-day retention). Every request and LLM call is logged with latency and token usage.
 
-**Switch to Pinecone:** Replace `build_vector_store()` in [app/services/vector_store.py](app/services/vector_store.py) with a Pinecone-backed store implementing LangChain's `VectorStore` interface. The rest of the code is unchanged.
+---
+
+## Evaluation
+
+`scripts/eval.py` runs an LLM-as-judge evaluation against a golden dataset. It requires `OPENAI_API_KEY`.
+
+```bash
+# Run against the default SOC 2 document and golden dataset
+uv run python scripts/eval.py
+
+# Run against a custom document and golden dataset
+uv run python scripts/eval.py \
+  --document sample_docs/soc2-type2.pdf \
+  --golden   sample_docs/golden_dataset.json
+```
+
+**How it works:**
+
+1. Loads and chunks the document, builds the retriever, and answers all questions in the golden dataset using the full RAG pipeline.
+2. For each Q/A pair, an LLM judge scores the system answer against the ideal answer on three axes (1–10):
+   - **Completeness** — does it cover the key facts from the ideal answer?
+   - **Accuracy** — are all stated claims factually correct per the ideal?
+   - **Phrasing** — is the answer clear and concise? Key facts should be delivered directly with gaps noted inline; concise answers that cover the facts score as well as or better than longer ones.
+3. Prints per-question results with scores and one-line reasoning, then a summary.
+4. Saves full results (scores + reasoning) to `sample_docs/eval_results.json`.
+5. Exits `0` if the overall average score across all axes and questions is ≥ 5/10, else `1`.
+
+**Golden dataset format** (`sample_docs/golden_dataset.json`):
+```json
+[
+  {
+    "question": "What cloud providers are used?",
+    "ideal_answer": "AWS and GCP are used as cloud providers."
+  }
+]
+```
+
+Entries without an `ideal_answer` are skipped. This lets you include exploratory questions in the dataset without blocking the eval.
+
+---
+
+## Design tradeoffs
+
+### Chunking
+
+**PDF — header-aware splitting:** PyMuPDF extracts to Markdown, then `MarkdownHeaderTextSplitter` splits on `##` section boundaries before sub-splitting into ~1000-char chunks. This preserves semantic boundaries (a section on access control stays together) at the cost of uneven chunk sizes — a short section produces a tiny chunk, a dense table produces many. The alternative (fixed-size sliding window) is simpler but routinely splits mid-sentence across section boundaries, hurting retrieval precision on structured compliance docs.
+
+**JSON — recursive leaf flattening:** Nested JSON is flattened to dot-notation key/value pairs (`data_centers.primary: us-east-1`). This makes every fact independently retrievable regardless of nesting depth. The downside is loss of parent context — a retriever can return `providers[0]: AWS` without knowing it lives under a `cloud_infrastructure` key. For deeply nested or array-heavy documents this can hurt coherence.
+
+**Chunk size (1000 chars, 200 overlap):** Sized for compliance document sentences and table rows. Larger chunks reduce the number of LLM context slots used but increase noise per chunk; smaller chunks improve precision but fragment multi-sentence facts. The 200-char overlap prevents facts from being split exactly at a boundary.
+
+---
+
+### Retrieval
+
+**Hybrid semantic + BM25 (60/40):** Semantic search (Chroma + `text-embedding-3-small`) handles paraphrase and synonym matching. BM25 handles exact keyword matching — critical for compliance documents where a specific term like `CC6.1` or `subservice organization` must appear verbatim. Neither alone is sufficient: pure semantic search misses exact terms; pure BM25 misses paraphrases. RRF fusion avoids the need to tune score thresholds across two different scoring scales.
+
+**Query decomposition:** A single question may use terminology that doesn't match document vocabulary (e.g. "third parties" vs "subservice organizations"). Decomposition generates multiple phrasings to maximise recall. The tradeoff is latency and token cost — each sub-query is an extra LLM call and retrieval pass. The decomposition and keyword expansion calls run in parallel to contain this.
+
+**Keyword expansion for BM25:** A separate LLM call extracts 6–10 short keywords optimised for BM25 matching. This improves BM25 recall on compliance-specific acronyms and policy names that query decomposition might miss. It's non-blocking — failure falls back to an empty keyword list.
+
+**Chroma over FAISS:** FAISS would be marginally faster and lighter for this workload — it has no server/SQLite layer and a smaller dependency footprint. Chroma was chosen because it has a first-class persistence path (`persist_directory`): adding a document-hash-keyed cache to skip re-embedding on repeated calls is a one-argument change. With FAISS, the same feature would require a custom serialization layer (`faiss.write_index` / `faiss.read_index` + separate metadata storage). At the document scales this API handles the performance difference is negligible, so the lower future cost of adding persistence drives the choice toward Chroma.
+
+**In-memory Chroma (no persistence):** The vector store is built fresh per request. This keeps the system stateless and horizontally scalable with no shared storage dependency, but means re-embedding the document on every call. For a single-document-per-request use case this is acceptable; for repeated queries against the same document, a persistent store keyed by document hash would eliminate redundant embedding calls.
+
+**MMR (Maximum Marginal Relevance):** Retrieves a diverse set of chunks rather than the top-k most similar. With fetch_k=30 and k=15, MMR filters the 30 nearest neighbours down to 15 that are maximally different from each other. This prevents the context window from being filled with near-duplicate chunks (common in repetitive compliance boilerplate) at the cost of occasionally including a slightly less relevant but diverse chunk.
+
+---
+
+### LLM answering
+
+**`gpt-4o-mini` at temperature 0:** Chosen for cost and speed over more capable models. Temperature 0 makes outputs more deterministic, which matters for consistency across retries and for evaluability. The tradeoff is reduced reasoning ability on complex multi-hop questions — acceptable here because the prompt is designed to synthesise retrieved facts rather than reason from scratch.
+
+**Anti-hallucination prompt design:** The prompt explicitly prohibits outside knowledge, requires bridging document vocabulary to question vocabulary, and mandates `"Data Not Available"` only when context is genuinely empty. This reduces hallucination but also means the model may be overly conservative on questions where the answer is inferable but not stated verbatim.
+
+**Chain-of-thought via `stepwise_reasoning`:** Asking the model to articulate its reasoning steps before committing to an answer is a form of chain-of-thought prompting. This measurably improves answer quality on multi-hop questions — the model is less likely to shortcut to a wrong answer when it must produce an auditable reasoning trace. The cost is ~10–20% more output tokens per call, translating directly to increased latency and API cost.
+
+**`confidence`:** A self-reported scalar (0–1). Self-assessed confidence is not perfectly calibrated — models tend to be overconfident on plausible-sounding answers and underconfident when the phrasing differs from the question vocabulary. Its value is relative rather than absolute: a 0.5 answer deserves more scrutiny than a 0.9 answer from the same model on the same document, even if the scores don't map to true probabilities. A better-calibrated signal could be derived from retrieval score distributions, but that adds significant complexity.
+
+**Latency impact:** Structured output adds two sources of latency over a plain-text call: the additional output tokens (reasoning + citations) and the overhead of OpenAI's function-calling parsing path. In practice the reasoning and citation fields are the dominant factor. For latency-sensitive applications, `stepwise_reasoning` could be omitted or generated only on low-confidence answers.
+
+**Schema rigidity:** `.with_structured_output()` enforces the schema at the API level — the model cannot return a malformed response without triggering a retryable error. This is more robust than post-hoc JSON parsing (the previous approach for keyword expansion) but means schema changes require a model re-call if the first attempt predates the change.
+
+---
+
+

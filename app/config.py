@@ -7,7 +7,7 @@ load_dotenv()
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 
     # OpenAI
     openai_api_key: str
@@ -32,6 +32,17 @@ class Settings(BaseSettings):
     max_retries: int = 3
     retry_min_wait: float = 1.0
     retry_max_wait: float = 10.0
+
+    # Logging
+    log_level: str = "INFO"
+    log_dir: str = "logs"
+
+    # Request limits
+    max_document_bytes: int = 20 * 1024 * 1024  # 20 MB
+    max_questions_bytes: int = 100 * 1024        # 100 KB
+    max_questions: int = 50
+    max_concurrent_questions: int = 50
+    llm_timeout_seconds: float = 60.0
 
 
 @lru_cache

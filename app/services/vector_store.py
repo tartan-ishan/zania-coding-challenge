@@ -1,3 +1,5 @@
+import logging
+
 from langchain_chroma import Chroma
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
@@ -6,6 +8,8 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_classic.retrievers import EnsembleRetriever
 
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 def build_retriever(documents: list[Document]) -> BaseRetriever:
@@ -17,10 +21,13 @@ def build_retriever(documents: list[Document]) -> BaseRetriever:
     Results from both are fused via Reciprocal Rank Fusion (EnsembleRetriever).
 
     To switch to persistent Chroma: pass persist_directory to Chroma().
-    To switch to Pinecone: replace the Chroma retriever with a Pinecone-backed one.
     The EnsembleRetriever interface stays the same.
     """
     settings = get_settings()
+    logger.info(
+        "Building retriever: %d documents, embedding_model=%s, retrieval_k=%d",
+        len(documents), settings.embedding_model, settings.retrieval_k,
+    )
 
     embeddings = OpenAIEmbeddings(
         model=settings.embedding_model,
@@ -33,6 +40,7 @@ def build_retriever(documents: list[Document]) -> BaseRetriever:
         embedding=embeddings,
         collection_metadata={"hnsw:space": "cosine"},
     )
+    logger.info("Chroma vector store built")
     semantic_retriever = vector_store.as_retriever(
         search_type="mmr",
         search_kwargs={
@@ -45,9 +53,14 @@ def build_retriever(documents: list[Document]) -> BaseRetriever:
     # Keyword retriever (BM25 — no embedding calls)
     bm25_retriever = BM25Retriever.from_documents(documents)
     bm25_retriever.k = settings.retrieval_k
+    logger.info("BM25 retriever built")
 
     # Fuse results via Reciprocal Rank Fusion
     semantic_weight = round(1.0 - settings.bm25_weight, 4)
+    logger.info(
+        "Ensemble retriever: semantic_weight=%.2f bm25_weight=%.2f",
+        semantic_weight, settings.bm25_weight,
+    )
     return EnsembleRetriever(
         retrievers=[semantic_retriever, bm25_retriever],
         weights=[semantic_weight, settings.bm25_weight],
