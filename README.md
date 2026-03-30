@@ -1,6 +1,6 @@
 # Zania QA Application
 ![alt text](image.png)
-*Fig. The interactive dashboard for uploading the files and expolring the results*
+*Fig. The interactive dashboard for uploading the files and exploring the results*
 
 A backend API that answers questions from uploaded documents (PDF or JSON) using Retrieval-Augmented Generation (RAG).
 
