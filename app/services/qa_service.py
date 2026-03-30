@@ -126,7 +126,7 @@ _ANSWER_PROMPT = ChatPromptTemplate.from_messages([
         "- For each part of the question, use the pattern: state what IS documented, "
         "then note what is NOT specified — in that order.\n"
         "- Never append 'Data Not Available' as a trailing sentence after providing partial content. "
-        "Instead write: 'The system couldn't find [specific missing detail] in the provided sources.'\n"
+        "Instead write: 'The system couldn't find [specific missing detail] in the provided sources instead of 'The context or sources dont mention'.'\n"
         "- Only set answer to exactly 'Data Not Available' (and nothing else) when the context "
         "contains zero relevant information for the entire question.\n\n"
 
@@ -274,7 +274,7 @@ async def _expand_keywords(question: str) -> list[str]:
 
 async def _call_llm(question: str, context: str) -> StructuredAnswer:
     settings = get_settings()
-    structured_llm = _get_llm().with_structured_output(StructuredAnswer)
+    structured_llm = _get_llm().with_structured_output(StructuredAnswer, include_raw=True)
     async for attempt in AsyncRetrying(
         retry=retry_if_exception_type((openai.RateLimitError, openai.APIStatusError)),
         stop=stop_any(
@@ -287,18 +287,21 @@ async def _call_llm(question: str, context: str) -> StructuredAnswer:
         with attempt:
             try:
                 start = time.perf_counter()
-                result = await structured_llm.ainvoke(
+                raw_result = await structured_llm.ainvoke(
                     _ANSWER_PROMPT.format_messages(question=question, context=context)
                 )
                 latency_ms = round((time.perf_counter() - start) * 1000, 2)
+                usage = getattr(raw_result["raw"], "usage_metadata", None)
                 logger.info(
                     "llm_call",
                     extra={
                         "latency_ms": latency_ms,
                         "model": settings.openai_model,
+                        "input_tokens": usage.get("input_tokens") if usage else None,
+                        "output_tokens": usage.get("output_tokens") if usage else None,
                     },
                 )
-                return result
+                return raw_result["parsed"]
             except openai.RateLimitError:
                 logger.warning("OpenAI rate limit hit, retrying...")
                 raise

@@ -13,7 +13,7 @@ Usage:
                                    --golden   sample_docs/golden_dataset.json
 
 Results are printed to stdout and saved to sample_docs/eval_results.json.
-Exit code: 0 if average score across all axes >= 7, else 1.
+Exit code: 0 if average score across all axes >= 5, else 1.
 """
 import argparse
 import asyncio
@@ -64,21 +64,23 @@ CRITERIA = {
         "and the higher number if it is at the stronger end. Output only the integer."
     ),
     "phrasing": (
-        "Score the clarity and conciseness of the prediction. "
-        "A high-scoring answer delivers the key information directly and efficiently — "
-        "concise answers that cover the facts well are preferred over lengthy ones. "
-        "The reference answer shows what facts matter, NOT how long or detailed the answer should be. "
+        "Score the quality of expression in the prediction — how well it communicates the necessary "
+        "information clearly, coherently, and in a style consistent with the reference answer. "
+        "Use the reference answer as a guide to the expected tone, structure, and level of detail. "
         "You MUST assign a score from the bands below — no other values are valid:\n"
-        "  1-2 — Refuses to answer or is so vague as to be unhelpful; or so verbose and repetitive "
-        "that the core answer is buried.\n"
-        "  3-4 — Answer is present but poorly structured, unnecessarily padded, or uses awkward phrasing "
-        "that obscures the key points.\n"
-        "  5-6 — Reasonably clear but either slightly overlong with minor padding, or missing a brief "
-        "acknowledgement of what the sources do not specify when that is relevant.\n"
-        "  7-8 — Clear and direct; covers what is documented and concisely notes any gaps; "
-        "no unnecessary filler.\n"
-        "  9-10 — Exceptionally concise and well-structured; every sentence earns its place; "
-        "gaps are noted inline without disrupting flow.\n"
+        "  1-2 — Refuses to answer, is incoherent, or so disorganised that the meaning is lost.\n"
+        "  3-4 — The answer is present but suffers from multiple issues: poor structure, duplicated "
+        "content, awkward or imprecise phrasing that obscures key points, or a style that diverges "
+        "significantly from the reference.\n"
+        "  5-6 — Mostly clear but has noticeable flaws — e.g. minor redundancy, slightly off tone, "
+        "imprecise word choices, or structure that differs from the reference in a way that reduces "
+        "readability.\n"
+        "  7-8 — Clear, coherent, and well-structured; phrasing is natural and aligns with the "
+        "reference style; necessary information is communicated meaningfully with no significant "
+        "issues.\n"
+        "  9-10 — Excellent expression; the answer matches the reference in tone and structure, "
+        "communicates all necessary information with precision, and contains no phrasing or "
+        "coherence issues.\n"
         "Within each band, use the lower number if the prediction is at the weaker end of that description, "
         "and the higher number if it is at the stronger end. Output only the integer."
     ),

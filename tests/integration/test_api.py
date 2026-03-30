@@ -59,8 +59,10 @@ def _make_fake_llm(answer: str = "Mocked answer from document context"):
         confidence=0.9,
         citations=["Mocked document content relevant to the question."],
     )
+    raw_message = MagicMock()
+    raw_message.usage_metadata = {"input_tokens": 100, "output_tokens": 50}
     structured_mock = MagicMock()
-    structured_mock.ainvoke = AsyncMock(return_value=structured_answer)
+    structured_mock.ainvoke = AsyncMock(return_value={"raw": raw_message, "parsed": structured_answer})
 
     mock = MagicMock()
     mock.with_structured_output = MagicMock(return_value=structured_mock)

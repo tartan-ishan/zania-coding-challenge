@@ -1,4 +1,5 @@
 import logging
+import time
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
@@ -42,6 +43,7 @@ async def question_answer(
     document_file: UploadFile = File(..., description="PDF or JSON document to query"),
     questions_file: UploadFile = File(..., description="JSON file containing a list of questions"),
 ) -> QAResponse:
+    request_start = time.perf_counter()
     logger.info(
         "Received request: document=%s (%s), questions=%s (%s)",
         document_file.filename, document_file.content_type,
@@ -124,5 +126,10 @@ async def question_answer(
             "The AI service is temporarily unavailable. Please try again.",
         )
 
-    logger.info("Request complete: answered %d questions", len(answers))
+    latency_ms = round((time.perf_counter() - request_start) * 1000, 2)
+    logger.info(
+        "Request complete: answered %d questions",
+        len(answers),
+        extra={"latency_ms": latency_ms},
+    )
     return QAResponse(answers=answers)

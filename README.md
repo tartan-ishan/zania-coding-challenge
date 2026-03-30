@@ -1,4 +1,6 @@
-# Zania QA API
+# Zania QA Application
+![alt text](image.png)
+*Fig. The interactive dashboard for uploading the files and expolring the results*
 
 A backend API that answers questions from uploaded documents (PDF or JSON) using Retrieval-Augmented Generation (RAG).
 
@@ -8,10 +10,11 @@ A backend API that answers questions from uploaded documents (PDF or JSON) using
 
 ## How it works
 
-1. Upload a document (PDF or JSON) and a questions file (JSON array of strings).
+1. Upload a document (PDF or JSON) and a questions file (JSON array of strings) via the web UI or API.
 2. The document is chunked and indexed into a hybrid retriever (semantic via Chroma + lexical via BM25).
-3. For each question, the system generates sub-queries and keywords, retrieves relevant chunks, and sends them to `gpt-4o-mini` with a strict anti-hallucination prompt.
-4. All questions are answered concurrently. Returns `"Data Not Available"` when no relevant context is found.
+3. For each question, the system generates sub-queries and keywords, retrieves relevant chunks, and sends them to `gpt-4o-mini` with an anti-hallucination prompt.
+4. All questions are answered concurrently. Each answer is returned as a structured object with an `answer`, `stepwise_reasoning`, `confidence` score, and `citations`. Returns `"Data Not Available"` when no relevant context is found.
+5. Results are displayed in the interactive dashboard with a confidence bar and collapsible reasoning and citation panels.
 
 ---
 
@@ -66,8 +69,18 @@ curl -X POST http://localhost:8000/api/v1/qa \
 ```json
 {
   "answers": {
-    "What cloud providers are used?": "AWS and GCP are used.",
-    "Who is responsible for security incidents?": "Data Not Available"
+    "What cloud providers are used?": {
+      "answer": "AWS and GCP are used.",
+      "stepwise_reasoning": ["The document lists AWS and GCP under cloud providers."],
+      "confidence": 0.95,
+      "citations": ["The company relies on AWS and GCP for cloud infrastructure."]
+    },
+    "Who is responsible for security incidents?": {
+      "answer": "Data Not Available",
+      "stepwise_reasoning": ["No relevant context found in the provided document."],
+      "confidence": 0.0,
+      "citations": []
+    }
   }
 }
 ```
@@ -89,11 +102,13 @@ Returns `{"status": "ok"}`.
 | `EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
 | `CHUNK_SIZE` | `1000` | Characters per chunk |
 | `CHUNK_OVERLAP` | `200` | Overlap between chunks |
-| `RETRIEVAL_K` | `15` | Chunks retrieved per query |
+| `RETRIEVAL_K` | `15` | Chunks retrieved per sub-query |
 | `BM25_WEIGHT` | `0.4` | BM25 weight in ensemble (semantic = 1 - this) |
 | `MAX_CONCURRENT_QUESTIONS` | `50` | Concurrent question limit |
 | `MAX_RETRIES` | `3` | Retries on OpenAI rate limit |
 | `LLM_TIMEOUT_SECONDS` | `60.0` | Per-question LLM timeout |
+
+All settings can be overridden via environment variables or `.env`. See `app/config.py` for the full list.
 
 ---
 
@@ -160,8 +175,6 @@ Entries without an `ideal_answer` are skipped. This lets you include exploratory
 
 **PDF — header-aware splitting:** PyMuPDF extracts to Markdown, then `MarkdownHeaderTextSplitter` splits on `##` section boundaries before sub-splitting into ~1000-char chunks. This preserves semantic boundaries (a section on access control stays together) at the cost of uneven chunk sizes — a short section produces a tiny chunk, a dense table produces many. The alternative (fixed-size sliding window) is simpler but routinely splits mid-sentence across section boundaries, hurting retrieval precision on structured compliance docs.
 
-**JSON — recursive leaf flattening:** Nested JSON is flattened to dot-notation key/value pairs (`data_centers.primary: us-east-1`). This makes every fact independently retrievable regardless of nesting depth. The downside is loss of parent context — a retriever can return `providers[0]: AWS` without knowing it lives under a `cloud_infrastructure` key. For deeply nested or array-heavy documents this can hurt coherence.
-
 **Chunk size (1000 chars, 200 overlap):** Sized for compliance document sentences and table rows. Larger chunks reduce the number of LLM context slots used but increase noise per chunk; smaller chunks improve precision but fragment multi-sentence facts. The 200-char overlap prevents facts from being split exactly at a boundary.
 
 ---
@@ -178,23 +191,17 @@ Entries without an `ideal_answer` are skipped. This lets you include exploratory
 
 **In-memory Chroma (no persistence):** The vector store is built fresh per request. This keeps the system stateless and horizontally scalable with no shared storage dependency, but means re-embedding the document on every call. For a single-document-per-request use case this is acceptable; for repeated queries against the same document, a persistent store keyed by document hash would eliminate redundant embedding calls.
 
-**MMR (Maximum Marginal Relevance):** Retrieves a diverse set of chunks rather than the top-k most similar. With fetch_k=30 and k=15, MMR filters the 30 nearest neighbours down to 15 that are maximally different from each other. This prevents the context window from being filled with near-duplicate chunks (common in repetitive compliance boilerplate) at the cost of occasionally including a slightly less relevant but diverse chunk.
-
 ---
 
 ### LLM answering
 
 **`gpt-4o-mini` at temperature 0:** Chosen for cost and speed over more capable models. Temperature 0 makes outputs more deterministic, which matters for consistency across retries and for evaluability. The tradeoff is reduced reasoning ability on complex multi-hop questions — acceptable here because the prompt is designed to synthesise retrieved facts rather than reason from scratch.
 
-**Anti-hallucination prompt design:** The prompt explicitly prohibits outside knowledge, requires bridging document vocabulary to question vocabulary, and mandates `"Data Not Available"` only when context is genuinely empty. This reduces hallucination but also means the model may be overly conservative on questions where the answer is inferable but not stated verbatim.
+**Chain-of-thought via `stepwise_reasoning`:** Asking the model to articulate its reasoning steps before committing to an answer is a form of chain-of-thought prompting. This measurably improves answer quality on multi-hop questions — the model is less likely to shortcut to a wrong answer when it must produce an auditable reasoning trace. The tradeoffs are increased latency and API cost.
 
-**Chain-of-thought via `stepwise_reasoning`:** Asking the model to articulate its reasoning steps before committing to an answer is a form of chain-of-thought prompting. This measurably improves answer quality on multi-hop questions — the model is less likely to shortcut to a wrong answer when it must produce an auditable reasoning trace. The cost is ~10–20% more output tokens per call, translating directly to increased latency and API cost.
-
-**`confidence`:** A self-reported scalar (0–1). Self-assessed confidence is not perfectly calibrated — models tend to be overconfident on plausible-sounding answers and underconfident when the phrasing differs from the question vocabulary. Its value is relative rather than absolute: a 0.5 answer deserves more scrutiny than a 0.9 answer from the same model on the same document, even if the scores don't map to true probabilities. A better-calibrated signal could be derived from retrieval score distributions, but that adds significant complexity.
+**`confidence`:** A self-reported scalar (0–1). Self-assessed confidence is not perfectly calibrated — models tend to be overconfident on plausible-sounding answers and underconfident when the phrasing differs from the question vocabulary. Its value is relative rather than absolute: a 0.5 answer deserves more scrutiny than a 0.9 answer from the same model on the same document, even if the scores don't map to true probabilities.
 
 **Latency impact:** Structured output adds two sources of latency over a plain-text call: the additional output tokens (reasoning + citations) and the overhead of OpenAI's function-calling parsing path. In practice the reasoning and citation fields are the dominant factor. For latency-sensitive applications, `stepwise_reasoning` could be omitted or generated only on low-confidence answers.
-
-**Schema rigidity:** `.with_structured_output()` enforces the schema at the API level — the model cannot return a malformed response without triggering a retryable error. This is more robust than post-hoc JSON parsing (the previous approach for keyword expansion) but means schema changes require a model re-call if the first attempt predates the change.
 
 ---
 
