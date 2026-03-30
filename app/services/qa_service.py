@@ -21,36 +21,103 @@ logger = logging.getLogger(__name__)
 # Prompts
 # ---------------------------------------------------------------------------
 
+# _DECOMPOSE_PROMPT = ChatPromptTemplate.from_messages([
+#     (
+#         "system",
+#         "You are a search query expert for compliance and security documents (SOC 2, ISO 27001, vendor assessments).\n\n"
+#         "Generate exactly {count} search queries for the given question using this mix:\n"
+#         "  1. One plain restatement of the question in simple natural language.\n"
+#         "  2. One or two queries using compliance document vocabulary "
+#         "(e.g. 'third parties' → 'subservice organizations'; "
+#         "'personal information' → 'PII Customer Confidential data'; "
+#         "'cloud providers' → 'hosting infrastructure subservice organizations'; "
+#         "'monitoring' → 'availability monitoring utilization metrics audit events'; "
+#         "'incident notification SLA' → 'data breach notification policy incident severity escalation').\n"
+#         "  3. One short keyword phrase (4-6 words max) targeting the most specific fact needed.\n"
+#         "  4. One control-framework query if applicable (e.g. 'CC7.3 incident response notification', 'A1.1 availability monitoring capacity').\n\n"
+#         "Output ONLY the queries, one per line, no numbering, no explanation.",
+#     ),
+#     ("human", "{question}"),
+# ])
+
 _DECOMPOSE_PROMPT = ChatPromptTemplate.from_messages([
     (
         "system",
-        "You are a search query expert for compliance and security documents (SOC 2, ISO 27001, vendor assessments).\n\n"
-        "Generate exactly {count} search queries for the given question using this mix:\n"
-        "  1. One plain restatement of the question in simple natural language.\n"
-        "  2. One or two queries using compliance document vocabulary "
-        "(e.g. 'third parties' → 'subservice organizations'; "
-        "'personal information' → 'PII Customer Confidential data'; "
-        "'cloud providers' → 'hosting infrastructure subservice organizations'; "
-        "'monitoring' → 'availability monitoring utilization metrics audit events'; "
-        "'incident notification SLA' → 'data breach notification policy incident severity escalation').\n"
-        "  3. One short keyword phrase (4-6 words max) targeting the most specific fact needed.\n"
-        "  4. One control-framework query if applicable (e.g. 'CC7.3 incident response notification', 'A1.1 availability monitoring capacity').\n\n"
-        "Output ONLY the queries, one per line, no numbering, no explanation.",
+        "You are an expert at retrieving information from compliance, security, and regulatory documents "
+        "(e.g. SOC 2, ISO 27001, GDPR, HIPAA, PCI DSS, NIST, vendor risk assessments, penetration test reports, "
+        "privacy policies, data processing agreements).\n\n"
+        "Your task: given a question, generate {count} distinct search queries that together maximise "
+        "the chance of finding the answer across differently-worded compliance documents.\n\n"
+        "Apply these strategies — use whichever are relevant, in any order:\n\n"
+        "  PLAIN RESTATEMENT — rephrase the question in simple, direct natural language.\n\n"
+        "  FORMAL/DOCUMENT VOCABULARY — replace everyday terms with the language compliance documents "
+        "typically use. Examples of substitutions (apply the principle, don't copy literally):\n"
+        "    · personal data → PII / customer confidential data / data subjects\n"
+        "    · third parties → subservice organizations / vendors / processors / subcontractors\n"
+        "    · cloud providers → hosting infrastructure / subservice organizations / IaaS PaaS providers\n"
+        "    · monitoring → availability monitoring / audit logging / utilization metrics / alerting\n"
+        "    · breach notification → incident escalation / data breach notification SLA / severity classification\n"
+        "    · access control → logical access / privileged access management / least privilege\n"
+        "    · employees → workforce / personnel / authorized users\n\n"
+        "  ACRONYM / SYNONYM EXPANSION — include alternate abbreviations or synonyms the document may use "
+        "(e.g. MFA / 2FA / multi-factor authentication; DR / BCP / business continuity; "
+        "VAPT / penetration testing / vulnerability assessment).\n\n"
+        "  SPECIFIC FACT TARGETING — a short keyword phrase (3-6 words) aimed at the precise data point, "
+        "metric, or clause being asked about (e.g. 'RTO RPO recovery objectives', "
+        "'encryption at rest AES-256', 'background check pre-employment screening').\n\n"
+        "  CONTROL FRAMEWORK ANCHORING — if the question maps to a known control objective, include a "
+        "query referencing the relevant framework language "
+        "(e.g. 'CC6.1 logical access controls', 'A1.2 environmental protections', "
+        "'ISO 27001 A.12.3 backup', 'NIST CSF PR.AC identity management').\n\n"
+        "Rules:\n"
+        "  - Output ONLY the queries, one per line, no numbering, no labels, no explanation.\n"
+        "  - Each query must be meaningfully distinct — no paraphrasing the same query twice.\n"
+        "  - Do not hallucinate control numbers; only include framework references you are confident apply.\n"
+        "  - Prefer breadth over depth: cover different angles rather than slight rewording.",
     ),
     ("human", "{question}"),
 ])
 
+# _KEYWORD_EXPAND_PROMPT = ChatPromptTemplate.from_messages([
+#     (
+#         "system",
+#         "You are a compliance document search expert.\n\n"
+#         "Given a question, output a flat JSON array of 5-8 short keyword strings "
+#         "that a SOC 2 or security compliance document would use when discussing the answer. "
+#         "Focus on proper nouns, acronyms, policy names, technical terms, and control IDs "
+#         "that would appear verbatim in the document.\n\n"
+#         "Examples for 'personal information third parties': "
+#         '[\"PII\", \"Customer Confidential\", \"subservice organization\", \"data classification\", \"non-disclosure agreement\", \"vendor risk assessment\"]\n\n'
+#         "Output ONLY the JSON array, no explanation.",
+#     ),
+#     ("human", "{question}"),
+# ])
+
 _KEYWORD_EXPAND_PROMPT = ChatPromptTemplate.from_messages([
     (
         "system",
-        "You are a compliance document search expert.\n\n"
-        "Given a question, output a flat JSON array of 5-8 short keyword strings "
-        "that a SOC 2 or security compliance document would use when discussing the answer. "
-        "Focus on proper nouns, acronyms, policy names, technical terms, and control IDs "
-        "that would appear verbatim in the document.\n\n"
-        "Examples for 'personal information third parties': "
-        '[\"PII\", \"Customer Confidential\", \"subservice organization\", \"data classification\", \"non-disclosure agreement\", \"vendor risk assessment\"]\n\n'
-        "Output ONLY the JSON array, no explanation.",
+        "You are an expert at keyword extraction for compliance and security document retrieval.\n\n"
+        "Given a question, output a flat JSON array of short keyword strings optimised for BM25 lexical search "
+        "against compliance documents (SOC 2, ISO 27001, GDPR, HIPAA, PCI DSS, NIST, vendor assessments, "
+        "penetration test reports, data processing agreements).\n\n"
+        "Include keywords from TWO categories:\n\n"
+        "  1. ANCHOR TERMS — high-signal words and phrases taken directly or near-directly from the question "
+        "that must not be lost during retrieval. These are the terms whose absence would cause a relevant "
+        "document to be missed. Preserve them even if they seem obvious.\n\n"
+        "  2. DOCUMENT VOCABULARY EXPANSIONS — alternative terms, acronyms, synonyms, and formal compliance "
+        "language that documents use when discussing the same concept. Focus on:\n"
+        "    · Proper nouns and acronyms (e.g. PII, MFA, VAPT, BCP, RTO, DPA)\n"
+        "    · Policy and control names (e.g. 'access control policy', 'incident response plan')\n"
+        "    · Framework control IDs only when you are confident they apply "
+        "(e.g. 'CC6.1', 'A.9.2', 'PR.AC')\n"
+        "    · Document-register terms (e.g. 'subservice organization', 'data classification', "
+        "'vendor risk assessment', 'statement of applicability')\n\n"
+        "Rules:\n"
+        "  - Output 6-10 strings total, prioritising terms most likely to appear verbatim in a compliance document.\n"
+        "  - Keep each string short (1-4 words max) — these are keywords, not sentences.\n"
+        "  - No duplicates or near-duplicates.\n"
+        "  - Do not invent control IDs or policy names you are not confident exist.\n"
+        "  - Output ONLY the JSON array, no explanation, no markdown fences.",
     ),
     ("human", "{question}"),
 ])
