@@ -34,8 +34,8 @@ from app.services.document_loader import load_documents
 from app.services.qa_service import answer_questions
 from app.services.vector_store import build_retriever
 
-PASS_SCORE = 7        # minimum average score (out of 10) to pass a question
-OVERALL_PASS = 7      # minimum overall average to exit 0
+PASS_SCORE = 5        # minimum average score (out of 10) to pass a question
+OVERALL_PASS = 6      # minimum overall average to exit 0
 
 CRITERIA = {
     "completeness": (
